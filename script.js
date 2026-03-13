@@ -807,7 +807,7 @@ function drawTopHud() {
   ctx.font = "11px Comfortaa";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  ctx.fillText("НУГАСЫГ НЬ ТАС ШАА", GAME_W - 126, 40);
+  ctx.fillText("ХОЖИЖ БАЙЖ ХОЖНО ШҮҮ", GAME_W - 126, 40);
 }
 
 function drawHudChip(x, y, w, h, label, color) {
@@ -1104,7 +1104,7 @@ function drawSidePanel() {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(
-    currentWave === 0 ? "▶ ШААЛЦЕӨӨ 1" : `▶ START WAVE ${currentWave + 1}`,
+    currentWave === 0 ? "▶ ЭХЛЭХ 1" : `▶ START WAVE ${currentWave + 1}`,
     UI_X + 94,
     btnY + 21
   );
@@ -1169,8 +1169,8 @@ function drawOverlay() {
   ctx.fillRect(0, 0, W, H);
 
   const win = state === "win";
-  const title = win ? "ШААЧИХЛАА!" : "ГУНИГ2";
-  const sub = win ? `ШААСАН РАУНД ${TOTAL_WAVES}` : `ИШШ ЧААВААС`;
+  const title = win ? " ТА ЯЛЛАА!" : "ГУНИГ2";
+  const sub = win ? `ДАВСАН РАУНД ${TOTAL_WAVES}` : `ИШШ ЧААВААС`;
   const titleCol = win ? C.gold : C.red;
 
   const cardW = 420;
@@ -1220,7 +1220,7 @@ function drawOverlay() {
   ctx.font = "16px Comfortaa";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("▶ НАХИЯ ПЯЗДА", W / 2, btnY + btnH / 2 + 1);
+  ctx.fillText("▶ ДАХИН ТОГЛОХ", W / 2, btnY + btnH / 2 + 1);
 }
 
 function hexToRgba(hex, a) {
