@@ -4,6 +4,42 @@ const ctx = canvas.getContext("2d");
 const W = canvas.width;
 const H = canvas.height;
 
+// ─── SOUNDS ──────────────────────────────────────────────────────────────────
+const sounds = {
+  laser: new Audio("./sounds/laser.mp3"),
+  rapid: new Audio("./sounds/rapid.mp3"),
+  sniper: new Audio("./sounds/sniper.mp3"),
+};
+
+sounds.laser.volume = 0.6;
+sounds.rapid.volume = 0.5;
+sounds.sniper.volume = 0.7;
+
+function playSound(name) {
+  const base = sounds[name];
+  if (!base) return;
+
+  const s = base.cloneNode();
+  s.volume = base.volume;
+  s.play().catch(() => {});
+}
+
+// browser audio unlock
+document.addEventListener(
+  "click",
+  () => {
+    Object.values(sounds).forEach((a) => {
+      a.play()
+        .then(() => {
+          a.pause();
+          a.currentTime = 0;
+        })
+        .catch(() => {});
+    });
+  },
+  { once: true }
+);
+
 // ─── Colors ─────────────────────────────────────────────────────────────────
 const C = {
   bg: "#284d2a",
@@ -123,7 +159,8 @@ const PATH = [
 const BUILD_SPOTS = [
   { x: 190, y: 118 },
   { x: 190, y: 218 },
-  { x: 46, y: 230 },  { x: 46, y: 400 },
+  { x: 46, y: 230 },
+  { x: 46, y: 400 },
   { x: 418, y: 300 },
   { x: 418, y: H - 82 },
   { x: 630, y: 160 },
@@ -161,6 +198,7 @@ let announceText = "";
 let shakeX = 0, shakeY = 0, shakeDuration = 0, shakeIntensity = 0;
 let flashTimer = 0;
 let time = 0;
+let rapidSoundCooldown = 0;
 
 let mouseX = 0;
 let mouseY = 0;
@@ -195,6 +233,10 @@ function updateHoveredSpot() {
   }
 }
 
+function pointInRect(mx, my, x, y, w, h) {
+  return mx >= x && mx <= x + w && my >= y && my <= y + h;
+}
+
 function handleClick(mx, my) {
   if (state === "between" && isInStartBtn(mx, my)) {
     startWave();
@@ -211,8 +253,8 @@ function handleClick(mx, my) {
   for (let i = 0; i < weaponOrder.length; i++) {
     const key = weaponOrder[i];
     const bx = UI_X;
-    const by = 164 + i * 42;
-    if (mx >= bx && mx <= bx + 188 && my >= by && my <= by + 32) {
+    const by = 148 + i * 48;
+    if (pointInRect(mx, my, bx, by, 188, 34)) {
       selectedWeapon = key;
       return;
     }
@@ -221,12 +263,12 @@ function handleClick(mx, my) {
   if (selectedTower) {
     const infoY = 380;
     if (selectedTower.level < 2) {
-      if (mx >= UI_X && mx <= UI_X + 188 && my >= infoY + 156 && my <= infoY + 190) {
+      if (pointInRect(mx, my, UI_X, infoY + 156, 188, 34)) {
         upgradeTower(selectedTower);
         return;
       }
     }
-    if (mx >= UI_X && mx <= UI_X + 188 && my >= panelY + 156 && my <= panelY + 186) {
+    if (pointInRect(mx, my, UI_X, infoY + 194, 188, 30)) {
       sellTower(selectedTower);
       return;
     }
@@ -352,6 +394,17 @@ function fireLaserAt(tower, enemy) {
   const stats = getTowerStats(tower);
   const towerType = getTowerType(tower);
 
+  if (tower.type === "laser") {
+    playSound("laser");
+  } else if (tower.type === "rapid") {
+    if (rapidSoundCooldown <= 0) {
+      playSound("rapid");
+      rapidSoundCooldown = 0.12;
+    }
+  } else if (tower.type === "sniper") {
+    playSound("sniper");
+  }
+
   const hit = Math.random() <= stats.accuracy;
 
   let targetX = enemy.x;
@@ -434,6 +487,7 @@ function resetGame() {
   flashTimer = 0;
   shakeX = 0;
   shakeY = 0;
+  rapidSoundCooldown = 0;
 }
 
 let lastTime = 0;
@@ -452,6 +506,7 @@ function loop(ts) {
 function update(dt) {
   if (announceTimer > 0) announceTimer -= dt;
   if (flashTimer > 0) flashTimer -= dt;
+  if (rapidSoundCooldown > 0) rapidSoundCooldown -= dt;
 
   if (shakeDuration > 0) {
     shakeDuration -= dt;
@@ -579,6 +634,16 @@ function render() {
   ctx.restore();
 
   if (state === "gameover" || state === "win") drawOverlay();
+
+  if (announceTimer > 0) {
+    ctx.save();
+    ctx.fillStyle = C.gold;
+    ctx.font = "32px Comfortaa";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(announceText, W / 2, 50);
+    ctx.restore();
+  }
 }
 
 function roundRectPath(x, y, w, h, r) {
@@ -735,7 +800,6 @@ function drawBase() {
     ? `rgba(255,80,100,${0.28 + pulse * 0.18})`
     : `rgba(90,170,255,${0.22 + pulse * 0.16})`;
 
-  const ringColor = lowHp ? "#ff5c73" : "#7dc4ff";
   const outerColor = lowHp ? "#8a2d3c" : "#214fbf";
   const innerColor = lowHp ? "#c84d63" : "#4b87ff";
   const coreColor = "#eef6ff";
@@ -743,13 +807,11 @@ function drawBase() {
   ctx.save();
   ctx.translate(BASE_X, BASE_Y);
 
-  // ground shadow
   ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath();
   ctx.ellipse(27, 24, 28, 10, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // pulse glow
   ctx.shadowColor = glowColor;
   ctx.shadowBlur = 28;
   ctx.fillStyle = glowColor;
@@ -759,31 +821,17 @@ function drawBase() {
 
   ctx.shadowBlur = 0;
 
-  // outer body
   roundRect(-1, -28, 56, 56, 14, outerColor);
-
-  // inner body
   roundRect(7, -20, 40, 40, 10, innerColor);
-
-  // highlight
-  ctx.fillStyle = "rgba(255, 0, 0, 0.14)";
   roundRect(8, -18, 36, 8, 5, "rgba(255,255,255,0.14)");
-
-  // core
   roundRect(16, -11, 22, 22, 6, coreColor);
+  roundRect(16, -11, 22, 22, 6, null, "rgba(40,80,150,0.18)", 1);
 
-  // core border
-  ctx.strokeStyle = "rgba(40,80,150,0.18)";
-  ctx.lineWidth = 1;
-  roundRect(-11, -11, 22, 22, 6, null, "rgba(40,80,150,0.18)", 1);
-
-  // center dot
   ctx.fillStyle = lowHp ? "#ff6b81" : "#3d7cff";
   ctx.beginPath();
   ctx.arc(27, 0, 3.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // label
   ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
   ctx.font = "8px Comfortaa";
   ctx.textAlign = "center";
@@ -1016,7 +1064,6 @@ function drawSidePanel() {
   const panelY = 92;
   const panelW = 204;
 
-  // Main weapon panel
   drawPanel(panelX, panelY, panelW, 270, 16);
 
   ctx.fillStyle = C.textDim;
@@ -1025,7 +1072,6 @@ function drawSidePanel() {
   ctx.textBaseline = "top";
   ctx.fillText("ЗЭВСЭГҮҮД", UI_X, panelY + 18);
 
-  // weapon buttons
   for (let i = 0; i < weaponOrder.length; i++) {
     const key = weaponOrder[i];
     const weapon = TOWER_TYPES[key];
@@ -1043,7 +1089,6 @@ function drawSidePanel() {
       active ? 1.5 : 1
     );
 
-    // left color bar
     roundRect(UI_X + 6, by + 6, 6, 22, 3, weapon.color);
 
     ctx.fillStyle = active ? C.text : C.textDim;
@@ -1057,7 +1102,6 @@ function drawSidePanel() {
     ctx.fillText(`${weapon.cost}₮`, UI_X + 176, by + 17);
   }
 
-  // selected weapon preview block
   const previewY = panelY + 206;
   roundRect(
     UI_X,
@@ -1081,12 +1125,10 @@ function drawSidePanel() {
   ctx.fillText(`RNG ${preview.range}`, UI_X + 74, previewY + 17);
   ctx.fillText(`SPD ${preview.fireRate.toFixed(1)}`, UI_X + 138, previewY + 17);
 
-  // progress bar
   const progY = panelY + 250;
   roundRect(UI_X, progY, 188, 8, 5, "rgba(255,255,255,0.06)");
   roundRect(UI_X, progY, 188 * (currentWave / TOTAL_WAVES), 8, 5, C.gold);
 
-  // start button
   const canStart = state === "between" && currentWave < TOTAL_WAVES;
   const btnY = panelY + 270;
 
@@ -1109,7 +1151,6 @@ function drawSidePanel() {
     btnY + 21
   );
 
-  // selected tower panel
   if (selectedTower) {
     const towerType = getTowerType(selectedTower);
     const st = getTowerStats(selectedTower);
@@ -1180,7 +1221,6 @@ function drawOverlay() {
 
   drawPanel(cardX, cardY, cardW, cardH, 22);
 
-  // subtle top highlight
   roundRect(
     cardX + 10,
     cardY + 10,
@@ -1190,7 +1230,6 @@ function drawOverlay() {
     "rgba(255,255,255,0.03)"
   );
 
-  // title
   ctx.save();
   ctx.shadowColor = titleCol;
   ctx.shadowBlur = 18;
@@ -1201,14 +1240,12 @@ function drawOverlay() {
   ctx.fillText(title, W / 2, cardY + 74);
   ctx.restore();
 
-  // subtitle
   ctx.fillStyle = "rgba(236,255,240,0.84)";
   ctx.font = "16px Comfortaa";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(sub, W / 2, cardY + 126);
 
-  // button
   const btnW = 196;
   const btnH = 50;
   const btnX = W / 2 - btnW / 2;
